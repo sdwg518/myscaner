@@ -30,10 +30,10 @@ jobs:
             libtinfo5 cmake libffi-dev libssl-dev \
             wget curl ccache
 
-      - name: Install Cython and Buildozer
+      - name: Install Python build tools
         run: |
           pip install --upgrade cython virtualenv
-          pip install --user buildozer
+          pip install --user buildozer kivy-garden
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Cache Buildozer directory
@@ -44,46 +44,66 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
-      - name: Build with Buildozer
-        id: build
+      - name: Configure buildozer.spec
         run: |
           # 若不存在 spec 文件则自动生成
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
 
-          # ---------- 写入您的专属配置 ----------
+          # ---------- 应用专属配置 ----------
           sed -i 's/^title = .*/title = 王刚老师扫描器/' buildozer.spec
           sed -i 's/^package.name = .*/package.name = wanggangscanner/' buildozer.spec
           sed -i 's/^package.domain = .*/package.domain = com.yourname/' buildozer.spec
-          # 🔥 关键：直接从 GitHub 安装最新的 kivy-garden.webview
-          sed -i 's/^requirements = .*/requirements = python3,kivy,git+https:\/\/github.com\/kivy-garden\/webview.git,flask/' buildozer.spec
-          sed -i 's/^android.permissions = .*/android.permissions = INTERNET/' buildozer.spec
-          
-          # 固定 build-tools 版本
+
+          # 🎯 只保留 arm64-v8a 架构
+          sed -i 's/^android.archs =.*/android.archs = arm64-v8a/' buildozer.spec
+
+          # 📦 使用 garden 方式安装 webview，而不是 git+https
+          #    同时保留其他 Python 依赖
+          sed -i 's/^requirements = .*/requirements = python3,kivy,flask/' buildozer.spec
+
+          # 🛠️ 固定 build-tools 版本
           sed -i '/^android.build_tools =/d' buildozer.spec
           echo "android.build_tools = 33.0.0" >> buildozer.spec
 
-          # 自动接受 SDK 许可证
+          # 📌 使用稳定的 NDK 版本（23c）
+          sed -i '/^android.ndk =/d' buildozer.spec
+          echo "android.ndk = 23c" >> buildozer.spec
+
+          # ⚙️ 禁用并行编译，避免 OOM
+          sed -i '/^android.concurrent_build =/d' buildozer.spec
+          echo "android.concurrent_build = False" >> buildozer.spec
+
+          # ✅ 自动接受 SDK 许可证
           sed -i '/^android.accept_sdk_license =/d' buildozer.spec
           echo "android.accept_sdk_license = True" >> buildozer.spec
 
-          # 可选：指定 python-for-android 分支（稳定版）
+          # 🔧 使用 python-for-android 的稳定分支
           sed -i '/^p4a.branch =/d' buildozer.spec
-          echo "p4a.branch = develop" >> buildozer.spec
+          echo "p4a.branch = master" >> buildozer.spec
 
-          # 手动接受所有 SDK 许可证（确保无交互）
-          buildozer android p4a -- --help || true
+          # 📝 设置详细日志等级
+          sed -i '/^log_level =/d' buildozer.spec
+          echo "log_level = 2" >> buildozer.spec
+
+          # ---------- 安装 kivy-garden.webview ----------
+          #    garden 命令会在用户目录下安装 webview，buildozer 会自动将其打包
+          garden install webview
+
+      - name: Accept Android SDK licenses
+        run: |
           SDK_ROOT="$HOME/.buildozer/android/platform/android-sdk"
           if [ -d "$SDK_ROOT" ]; then
             yes | $SDK_ROOT/tools/bin/sdkmanager --sdk_root=$SDK_ROOT --licenses || true
           fi
 
-          # 详细日志并保存到文件
-          sed -i '/^log_level =/d' buildozer.spec
-          echo "log_level = 2" >> buildozer.spec
-          
-          # 执行打包，并将所有输出保存到日志文件
+      - name: Build APK with Buildozer
+        id: build
+        env:
+          GRADLE_OPTS: "-Xmx2048m -Dorg.gradle.daemon=false"
+        run: |
+          # 执行打包，保存完整日志
           buildozer android debug 2>&1 | tee buildozer.log
 
       - name: Upload APK artifact
@@ -93,7 +113,7 @@ jobs:
           path: bin/*.apk
 
       - name: Upload Buildozer log
-        if: always()  # 即使打包失败也上传日志
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: buildozer-log
