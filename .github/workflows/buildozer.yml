@@ -1,0 +1,57 @@
+name: Build APK for 王刚老师扫描器
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:   # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            git zip unzip openjdk-17-jdk \
+            python3-pip autoconf libtool pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            libtinfo5 cmake libffi-dev libssl-dev \
+            wget curl
+
+      - name: Install Cython and Buildozer
+        run: |
+          pip install --upgrade cython virtualenv
+          pip install --user buildozer
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build with Buildozer
+        run: |
+          # 自动生成 buildozer.spec（若不存在）
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+          # 修改 buildozer.spec 配置（使用 sed 直接编辑）
+          sed -i 's/^title = .*/title = 王刚老师扫描器/' buildozer.spec
+          sed -i 's/^package.name = .*/package.name = wanggangscanner/' buildozer.spec
+          sed -i 's/^package.domain = .*/package.domain = com.yourname/' buildozer.spec
+          sed -i 's/^requirements = .*/requirements = python3,kivy,kivy-garden.webview,flask/' buildozer.spec
+          sed -i 's/^android.permissions = .*/android.permissions = INTERNET/' buildozer.spec
+          # 接受SDK许可证（非交互式）
+          yes | buildozer android debug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wanggang-scanner-apk
+          path: bin/*.apk
