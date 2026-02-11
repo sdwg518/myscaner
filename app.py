@@ -1,25 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-22端口扫描器 - 全功能单文件版
-支持：Win10直接运行Flask调试 / Kivy+WebView手机应用
+王刚老师扫描器 - 22端口扫描器
+单文件版，无任何Android原生依赖，支持Win10调试和Android打包
 """
 
 import socket
 import threading
 import ipaddress
 from concurrent.futures import ThreadPoolExecutor
-from flask import Flask, render_template_string, jsonify, request
+from flask import Flask, render_template_string, jsonify
 import sys
 import os
 
-# ---------- 内嵌HTML模板（完全替代templates/index.html）----------
+# ---------- 内嵌HTML模板 ----------
 INDEX_HTML = '''
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>22端口扫描器</title>
+    <title>王刚老师扫描器</title>
     <style>
         body {
             font-family: system-ui, sans-serif;
@@ -112,7 +112,7 @@ INDEX_HTML = '''
 </head>
 <body>
     <div class="container">
-        <h1>🔍 王刚老师服务器扫描器</h1>
+        <h1>🔍 王刚老师扫描器</h1>
         <div class="network-info" id="networkDisplay">
             正在检测网段...
         </div>
@@ -133,18 +133,14 @@ INDEX_HTML = '''
     </div>
 
     <script>
-        // 全局变量
         let pollInterval = null;
 
-        // 页面加载时获取网络信息
         window.onload = function() {
             updateNetworkInfo();
-            checkStatus(); // 获取初始状态
-            // 启动定时轮询（每1秒）
+            checkStatus();
             pollInterval = setInterval(checkStatus, 1000);
         };
 
-        // 获取网络信息
         function updateNetworkInfo() {
             fetch('/api/status')
                 .then(r => r.json())
@@ -154,7 +150,6 @@ INDEX_HTML = '''
                 });
         }
 
-        // 检查扫描状态
         function checkStatus() {
             fetch('/api/status')
                 .then(r => r.json())
@@ -174,7 +169,6 @@ INDEX_HTML = '''
                         statusEl.innerHTML = `状态: ✅ 扫描完成 (找到 ${data.results.length} 个开放端口)`;
                         scanBtn.disabled = false;
                         scanBtn.innerText = '重新扫描';
-                        // 显示结果
                         renderResults(data.results);
                     } else if (data.status === 'error') {
                         statusEl.innerHTML = '状态: ❌ 扫描出错，请重试';
@@ -184,7 +178,6 @@ INDEX_HTML = '''
                 });
         }
 
-        // 渲染IP列表
         function renderResults(ips) {
             const container = document.getElementById('resultList');
             if (ips.length === 0) {
@@ -204,13 +197,11 @@ INDEX_HTML = '''
             container.innerHTML = html;
         }
 
-        // 开始扫描
         function startScan() {
             fetch('/api/scan', {method: 'POST'})
                 .then(r => r.json())
                 .then(data => {
                     if (data.status === 'started') {
-                        // 清空旧结果
                         document.getElementById('resultList').innerHTML = '';
                     } else if (data.status === 'scanning') {
                         alert('已有扫描任务进行中');
@@ -218,17 +209,13 @@ INDEX_HTML = '''
                 });
         }
 
-        // 复制IP到剪贴板
         function copyIP(ip) {
-            // 创建临时输入框
             const input = document.createElement('input');
             input.value = ip;
             document.body.appendChild(input);
             input.select();
             document.execCommand('copy');
             document.body.removeChild(input);
-            
-            // 简单提示（可改为toast）
             alert(`已复制: ${ip}`);
         }
     </script>
@@ -278,7 +265,6 @@ def scan_network(network=None, port=22, max_workers=50):
 # ---------- Flask Web服务 ----------
 app = Flask(__name__)
 
-# 全局扫描状态
 scan_status = "idle"   # idle, scanning, done, error
 scan_result = []
 
@@ -337,29 +323,23 @@ def start_kivy_app():
     from kivy.uix.boxlayout import BoxLayout
     from kivy_garden.webview import WebView
 
-    class PortScannerApp(App):
+    class WanggangScannerApp(App):
         def build(self):
-            # 启动Flask后台线程
             flask_thread = threading.Thread(target=run_flask, daemon=True)
             flask_thread.start()
-            
             layout = BoxLayout()
             webview = WebView(url='http://127.0.0.1:5000')
             layout.add_widget(webview)
             return layout
     
-    PortScannerApp().run()
+    WanggangScannerApp().run()
 
 # ---------- 程序入口 ----------
 if __name__ == '__main__':
-    # 判断运行环境：如果有Kivy相关参数，则启动Kivy应用，否则直接启动Flask（桌面调试）
     if len(sys.argv) > 1 and sys.argv[1] == '--kivy':
-        # 手动指定用Kivy启动
         start_kivy_app()
     elif 'ANDROID_ARGUMENT' in os.environ:
-        # 在Android上（通过python-for-android）会自动设置此环境变量
         start_kivy_app()
     else:
-        # 默认：在Win10/Mac/Linux直接启动Flask（通过浏览器访问）
         print("🚀 启动Flask调试服务器，请访问 http://127.0.0.1:5000")
         run_flask()
