@@ -55,32 +55,31 @@ jobs:
           sed -i 's/^title = .*/title = 王刚老师扫描器/' buildozer.spec
           sed -i 's/^package.name = .*/package.name = wanggangscanner/' buildozer.spec
           sed -i 's/^package.domain = .*/package.domain = com.yourname/' buildozer.spec
+          # 🔥 关键：移除 pyjnius，不再需要！
           sed -i 's/^requirements = .*/requirements = python3,kivy,kivy-garden.webview,flask/' buildozer.spec
           sed -i 's/^android.permissions = .*/android.permissions = INTERNET/' buildozer.spec
 
-          # 🔥 关键修复1：指定稳定的 build-tools 版本（避免最新版许可证问题）
+          # 固定 build-tools 版本，避免新版许可证问题
           sed -i '/^android.build_tools =/d' buildozer.spec
           echo "android.build_tools = 33.0.0" >> buildozer.spec
 
-          # 🔥 关键修复2：自动接受 SDK 许可证（同时保留配置，双重保险）
+          # 自动接受 SDK 许可证（双重保险）
           sed -i '/^android.accept_sdk_license =/d' buildozer.spec
           echo "android.accept_sdk_license = True" >> buildozer.spec
 
-          # 🔥 关键修复3：手动接受所有 SDK 许可证（直接调用 sdkmanager）
-          # 先确保 SDK 已下载（Buildozer 会在第一次运行时下载）
-          # 如果 SDK 还不存在，先运行一个无害命令触发下载
+          # 手动接受所有 SDK 许可证（确保无交互）
+          # 先确保 SDK 已下载（触发一次无害命令）
           buildozer android p4a -- --help || true
-          # 定位 SDK 目录并接受许可证
           SDK_ROOT="$HOME/.buildozer/android/platform/android-sdk"
           if [ -d "$SDK_ROOT" ]; then
             yes | $SDK_ROOT/tools/bin/sdkmanager --sdk_root=$SDK_ROOT --licenses || true
           fi
 
-          # 详细日志
+          # 可选：详细日志（方便排查）
           sed -i '/^log_level =/d' buildozer.spec
           echo "log_level = 2" >> buildozer.spec
 
-          # 开始打包（现在许可证已全部接受）
+          # 开始打包（现在没有 pyjnius，编译绝对顺畅）
           buildozer android debug
 
       - name: Upload APK artifact
