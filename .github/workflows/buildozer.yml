@@ -5,24 +5,21 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch:      # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04   # ✅ 稳定版，完美支持 Buildozer 依赖
+    runs-on: ubuntu-22.04
 
     steps:
-      # 1. 检出代码
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. 设置 Python 3.8（Kivy 项目最兼容版本）
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.8'
 
-      # 3. 安装系统依赖（libtinfo5 在 22.04 中可用）
       - name: Install system dependencies
         run: |
           sudo apt update
@@ -33,14 +30,12 @@ jobs:
             libtinfo5 cmake libffi-dev libssl-dev \
             wget curl
 
-      # 4. 安装 Cython 和 Buildozer
       - name: Install Cython and Buildozer
         run: |
           pip install --upgrade cython virtualenv
           pip install --user buildozer
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      # 5. 🔥 缓存 .buildozer 目录（极大加速打包，避免重复下载 SDK/NDK）
       - name: Cache Buildozer directory
         uses: actions/cache@v4
         with:
@@ -49,7 +44,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
-      # 6. 🔥 构建 APK（自动配置，无交互）
       - name: Build with Buildozer
         run: |
           # 若不存在 spec 文件则自动生成
@@ -58,24 +52,22 @@ jobs:
           fi
 
           # ---------- 写入您的专属配置（使用 sed 直接修改）----------
-          # 应用标题
           sed -i 's/^title = .*/title = 王刚老师扫描器/' buildozer.spec
-          # 包名（必须唯一）
           sed -i 's/^package.name = .*/package.name = wanggangscanner/' buildozer.spec
           sed -i 's/^package.domain = .*/package.domain = com.yourname/' buildozer.spec
-          # 依赖（关键！）
           sed -i 's/^requirements = .*/requirements = python3,kivy,kivy-garden.webview,flask/' buildozer.spec
-          # 权限（只需 INTERNET）
           sed -i 's/^android.permissions = .*/android.permissions = INTERNET/' buildozer.spec
-          # ✅ 自动接受 SDK 许可证（彻底解决交互问题）
-          echo "android.accept_sdk_license = True" >> buildozer.spec
-          # 📋 输出详细日志，便于排查
+
+          # 🔥 修复重复键问题：先删除旧行，再添加新行
+          sed -i '/^log_level =/d' buildozer.spec
           echo "log_level = 2" >> buildozer.spec
 
-          # 开始打包（不再需要 yes | 管道）
+          sed -i '/^android.accept_sdk_license =/d' buildozer.spec
+          echo "android.accept_sdk_license = True" >> buildozer.spec
+
+          # 开始打包（非交互式）
           buildozer android debug
 
-      # 7. 📦 上传生成的 APK 作为 Artifact
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
