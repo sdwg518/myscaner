@@ -88,8 +88,8 @@ jobs:
           echo "log_level = 2" >> buildozer.spec
 
           # ---------- 安装 kivy-garden.webview ----------
-          #    garden 命令会在用户目录下安装 webview，buildozer 会自动将其打包
-          garden install webview
+          #   使用 python -m garden 避免权限问题
+          python -m garden install webview
 
       - name: Accept Android SDK licenses
         run: |
