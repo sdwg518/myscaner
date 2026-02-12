@@ -33,8 +33,7 @@ jobs:
       - name: Install Python build tools
         run: |
           pip install --upgrade cython virtualenv
-          # 安装 buildozer 和 kivy-garden.webview（直接 PyPI 安装）
-          pip install --user buildozer kivy-garden.webview
+          pip install --user buildozer
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Cache Buildozer directory
@@ -60,8 +59,8 @@ jobs:
           # 🎯 只保留 arm64-v8a 架构（核心优化，避免 OOM）
           sed -i 's/^android.archs =.*/android.archs = arm64-v8a/' buildozer.spec
 
-          # 📦 依赖：python3, kivy, flask, 以及 kivy-garden.webview（通过 pip 安装）
-          sed -i 's/^requirements = .*/requirements = python3,kivy,flask,kivy-garden.webview/' buildozer.spec
+          # 📦 依赖：python3, kivy, flask, 以及 webview（使用 Git 地址，确保最新版）
+          sed -i 's/^requirements = .*/requirements = python3,kivy,flask,git+https:\/\/github.com\/kivy-garden\/webview.git/' buildozer.spec
 
           # 🛠️ 固定 build-tools 版本
           sed -i '/^android.build_tools =/d' buildozer.spec
@@ -86,8 +85,6 @@ jobs:
           # 📝 设置详细日志等级
           sed -i '/^log_level =/d' buildozer.spec
           echo "log_level = 2" >> buildozer.spec
-
-          # （不再需要 garden install 命令，因为已通过 pip 直接安装）
 
       - name: Accept Android SDK licenses
         run: |
